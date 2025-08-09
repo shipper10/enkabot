@@ -7,10 +7,10 @@ from telethon.errors import FloodWaitError
 import requests
 from bs4 import BeautifulSoup
 
-# معلومات البوت
-BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"
-API_ID = 26635029
-API_HASH = "4a8035abc01fb292df56a59fd1d00573"
+# معلومات البوت (يجب أن يتم تزويدها كمتغيرات بيئية على Koyeb)
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+API_ID = int(os.environ.get("API_ID"))
+API_HASH = os.environ.get("API_HASH")
 
 # اسم ملف الجلسة والبيانات
 SESSION_NAME = 'enka_bot_session'
@@ -53,12 +53,10 @@ def fetch_profile_data(game_key, uid):
     try:
         profile_url = GAMES_CONFIG[game_key]['url_template'].format(uid=uid)
         response = requests.get(profile_url, timeout=15)
-        response.raise_for_status()  # رفع استثناء إذا كان الرد غير ناجح
+        response.raise_for_status()
         
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # البحث عن أسماء الشخصيات في الصفحة
-        # هذا الجزء يعتمد على بنية HTML للموقع وقد يحتاج إلى تعديل في المستقبل
         characters_list = []
         for char_div in soup.find_all('div', class_='character-card'):
             char_name_div = char_div.find('div', class_='character-name')
@@ -94,8 +92,8 @@ def fetch_enka_image(game_key, uid, character_name):
         print(f"حدث خطأ في طلب الصورة: {e}")
         return None
 
-# تهيئة البوت
-bot = TelegramClient(SESSION_NAME, API_ID, API_HASH).start(bot_token=BOT_TOKEN)
+# تهيئة البوت باستخدام ملف الجلسة
+bot = TelegramClient(SESSION_NAME, API_ID, API_HASH)
 
 # ----- أوامر البوت -----
 
