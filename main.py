@@ -225,8 +225,13 @@ async def showcase_handler(event):
     await event.respond("جارٍ جلب الشخصيات من واجهة العرض الخاصة بك...")
 
     try:
-        characters = await client.get_showcase(uid=uid)
-        
+        # استخدام الدالة الجديدة مع التحقق من وجودها
+        if hasattr(client, 'get_user_showcase'):
+            characters = await client.get_user_showcase(uid=uid)
+        else:
+            await event.respond("❌ خطأ: الدالة الجديدة لجلب الشخصيات غير متوفرة في إصدار المكتبة الحالي. يرجى تحديث genshin.py.")
+            return
+
         if not characters:
             await event.respond("❌ لا توجد شخصيات في واجهة العرض. تأكد من أن حسابك عام وأن لديك شخصيات معروضة.")
             return
@@ -259,8 +264,13 @@ async def detailed_characters_handler(event):
     await event.respond("جارٍ جلب تفاصيل الشخصيات من واجهة العرض...")
 
     try:
-        characters = await client.get_showcase(uid=uid)
-        
+        # استخدام الدالة الجديدة مع التحقق من وجودها
+        if hasattr(client, 'get_user_showcase'):
+            characters = await client.get_user_showcase(uid=uid)
+        else:
+            await event.respond("❌ خطأ: الدالة الجديدة لجلب الشخصيات غير متوفرة في إصدار المكتبة الحالي. يرجى تحديث genshin.py.")
+            return
+
         if not characters:
             await event.respond("❌ لا توجد شخصيات في واجهة العرض. تأكد من أن حسابك عام وأن لديك شخصيات معروضة.")
             return
@@ -301,8 +311,8 @@ async def diary_handler(event):
         
         message = (
             f"**💰 ملخص الدفتر اليومي (شهر {diary.month}):**\n"
-            f"💎 **Primogems هذا الشهر:** `{diary.data.primogems}`\n"
-            f"💵 **Mora هذا الشهر:** `{diary.data.mora}`"
+            f"💎 **Primogems هذا الشهر:** `{diary.primogems}`\n"
+            f"💵 **Mora هذا الشهر:** `{diary.mora}`"
         )
         await event.respond(message, parse_mode='md')
 
