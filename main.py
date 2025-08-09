@@ -53,7 +53,7 @@ async def start_handler(event):
     message = (
         "أهلاً بك في بوت إحصائيات Genshin Impact! 🤖\n\n"
         "للبدء، يرجى ربط حسابك عن طريق إرسال ملفات تعريف الارتباط (Cookies) الخاصة بك والـUID في محادثة خاصة معي.\n\n"
-        "**الأمر:** `/setcookies <ltuid_v2> <ltoken_v2> <uid>`\n\n"
+        "**الأمر:** `/setcookies <ltuid_v2> <ltoken_v2> <uid>`\n"
         "**تنبيه:** هذا الأمر يعمل فقط في محادثة خاصة لضمان أمان بياناتك. للحصول على قائمة بالأوامر، استخدم `/help`."
     )
     await event.respond(message)
@@ -297,7 +297,7 @@ async def diary_handler(event):
     await event.respond("جارٍ جلب ملخص الدفتر اليومي...")
 
     try:
-        diary = await client.get_diary(uid=uid)
+        diary = await client.get_genshin_diary(uid=uid)
         
         message = (
             f"**💰 ملخص الدفتر اليومي (شهر {diary.month}):**\n"
