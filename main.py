@@ -36,13 +36,14 @@ bot = TelegramClient('genshin_multi_user_session', API_ID, API_HASH)
 def get_genshin_client(user_id):
     users_data = load_users_data()
     if user_id not in users_data:
-        return None, None
+        return None, None, None
     
     ltuid_v2 = users_data[user_id]['ltuid_v2']
     ltoken_v2 = users_data[user_id]['ltoken_v2']
+    in_game_uid = users_data[user_id]['uid']
     
     client = genshin.Client({"ltuid_v2": ltuid_v2, "ltoken_v2": ltoken_v2})
-    return client, ltuid_v2
+    return client, ltuid_v2, in_game_uid
 
 # ----- الأوامر العامة -----
 
@@ -50,8 +51,8 @@ def get_genshin_client(user_id):
 async def start_handler(event):
     message = (
         "أهلاً بك في بوت إحصائيات Genshin Impact! 🤖\n\n"
-        "للبدء، يرجى ربط حسابك عن طريق إرسال ملفات تعريف الارتباط (Cookies) الخاصة بك في محادثة خاصة معي.\n\n"
-        "**الأمر:** `/setcookies <ltuid_v2> <ltoken_v2>`\n\n"
+        "للبدء، يرجى ربط حسابك عن طريق إرسال ملفات تعريف الارتباط (Cookies) الخاصة بك والـUID في محادثة خاصة معي.\n\n"
+        "**الأمر:** `/setcookies <ltuid_v2> <ltoken_v2> <uid>`\n\n"
         "**تنبيه:** هذا الأمر يعمل فقط في محادثة خاصة لضمان أمان بياناتك."
     )
     await event.respond(message)
@@ -62,24 +63,25 @@ async def setcookies_handler(event):
         await event.reply("❌ هذا الأمر متاح فقط في محادثة خاصة لضمان أمان بياناتك.")
         return
 
-    command_parts = event.text.split(' ', 2)
-    if len(command_parts) < 3:
-        await event.respond("❌ يرجى إدخال ltuid_v2 و ltoken_v2.\n\n"
-                            "**مثال:** `/setcookies 123456789 aBcDeFg`")
+    command_parts = event.text.split(' ', 3)
+    if len(command_parts) < 4:
+        await event.respond("❌ يرجى إدخال ltuid_v2 و ltoken_v2 والـUID.\n\n"
+                            "**مثال:** `/setcookies 123456789 aBcDeFg 726339362`")
         return
     
     try:
         ltuid_v2 = int(command_parts[1])
         ltoken_v2 = command_parts[2]
+        in_game_uid = int(command_parts[3])
         user_id = str(event.sender_id)
 
         users_data = load_users_data()
-        users_data[user_id] = {'ltuid_v2': ltuid_v2, 'ltoken_v2': ltoken_v2}
+        users_data[user_id] = {'ltuid_v2': ltuid_v2, 'ltoken_v2': ltoken_v2, 'uid': in_game_uid}
         save_users_data(users_data)
         
         await event.respond("✅ تم حفظ بيانات حسابك بنجاح! يمكنك الآن استخدام الأوامر الأخرى.")
     except ValueError:
-        await event.respond("❌ خطأ: تأكد من أن ltuid_v2 هو رقم صحيح.")
+        await event.respond("❌ خطأ: تأكد من أن ltuid_v2 والـUID هما رقمان صحيحان.")
     except Exception as e:
         await event.respond(f"❌ حدث خطأ أثناء حفظ البيانات: {e}")
 
@@ -88,7 +90,7 @@ async def setcookies_handler(event):
 @bot.on(events.NewMessage(pattern='/stats'))
 async def stats_handler(event):
     user_id = str(event.sender_id)
-    client, uid = get_genshin_client(user_id)
+    client, _, uid = get_genshin_client(user_id)
     
     if not client:
         await event.respond("❌ لم يتم ربط حسابك بعد. يرجى استخدام أمر `/setcookies` في محادثة خاصة معي أولاً.")
@@ -120,7 +122,7 @@ async def stats_handler(event):
 @bot.on(events.NewMessage(pattern='/abyss'))
 async def abyss_handler(event):
     user_id = str(event.sender_id)
-    client, uid = get_genshin_client(user_id)
+    client, _, uid = get_genshin_client(user_id)
     
     if not client:
         await event.respond("❌ لم يتم ربط حسابك بعد. يرجى استخدام أمر `/setcookies` في محادثة خاصة معي أولاً.")
@@ -150,7 +152,7 @@ async def abyss_handler(event):
 @bot.on(events.NewMessage(pattern='/checkin'))
 async def checkin_handler(event):
     user_id = str(event.sender_id)
-    client, uid = get_genshin_client(user_id)
+    client, _, uid = get_genshin_client(user_id)
     
     if not client:
         await event.respond("❌ لم يتم ربط حسابك بعد. يرجى استخدام أمر `/setcookies` في محادثة خاصة معي أولاً.")
@@ -179,7 +181,7 @@ async def checkin_handler(event):
 @bot.on(events.NewMessage(pattern='/showcase'))
 async def showcase_handler(event):
     user_id = str(event.sender_id)
-    client, uid = get_genshin_client(user_id)
+    client, _, uid = get_genshin_client(user_id)
 
     if not client:
         await event.respond("❌ لم يتم ربط حسابك بعد. يرجى استخدام أمر `/setcookies` في محادثة خاصة معي أولاً.")
@@ -213,7 +215,7 @@ async def showcase_handler(event):
 @bot.on(events.NewMessage(pattern='/diary'))
 async def diary_handler(event):
     user_id = str(event.sender_id)
-    client, uid = get_genshin_client(user_id)
+    client, _, uid = get_genshin_client(user_id)
 
     if not client:
         await event.respond("❌ لم يتم ربط حسابك بعد. يرجى استخدام أمر `/setcookies` في محادثة خاصة معي أولاً.")
