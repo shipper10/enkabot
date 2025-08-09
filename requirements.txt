@@ -1,5 +1,5 @@
 telethon
-genshin
+git+https://github.com/thesadru/genshin.py.git#egg=genshin
 humanize
 requests
 beautifulsoup4
