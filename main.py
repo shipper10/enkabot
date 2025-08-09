@@ -258,7 +258,12 @@ async def button_handler(event):
 
 async def main():
     print("[✓] البوت يعمل...")
+    # 🌟 هذا السطر هو الإضافة التي تحتاجها 🌟
+    await bot.start(bot_token=BOT_TOKEN)
     await bot.run_until_disconnected()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    if not BOT_TOKEN or not API_ID or not API_HASH:
+        print("[!] خطأ: متغيرات البيئة BOT_TOKEN, API_ID, أو API_HASH غير موجودة.")
+    else:
+        asyncio.run(main())
