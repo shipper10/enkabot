@@ -1,4 +1,5 @@
 telethon
+genshin
 requests
 beautifulsoup4
 lxml # يوصى بها مع Beautiful Soup لتحليل HTML بشكل أفضل
