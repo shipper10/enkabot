@@ -128,8 +128,11 @@ async def stats_handler(event):
             f"💧 **الريزن الأصلي:** `{notes.current_resin}/{notes.max_resin}`\n"
             f"⏰ **متبقي لاستعادة الريزن:** `{humanize.naturaltime(notes.resin_recovery_time)}`\n"
             f"📦 **مهمات اليوم:** `{notes.completed_commissions}/{notes.max_commissions}`\n"
-            f"🗺️ **البعثات:** `{notes.completed_expeditions}/{notes.max_expeditions}`"
         )
+        if hasattr(notes, 'current_weekly_boss_resin'):
+            message += f"✨ **قوة الكاوشيوم الأسبوعية:** `{notes.current_weekly_boss_resin}/{notes.max_weekly_boss_resin}`\n"
+        
+        message += f"🗺️ **البعثات:** `{notes.completed_expeditions}/{notes.max_expeditions}`"
         
         await event.respond(message)
     
@@ -154,22 +157,25 @@ async def abyss_handler(event):
     try:
         # جلب الدورة الحالية
         abyss_current = await client.get_spiral_abyss(uid=uid)
-        
-        message = (
+        message_current = (
             f"**⚔️ إحصائيات الـSpiral Abyss (الدورة الحالية):**\n"
             f"✨ **الدور المكتمل:** `{abyss_current.total_battles}`\n"
             f"⭐ **النجوم المكتسبة:** `{abyss_current.total_stars}`\n"
         )
+        if hasattr(abyss_current, 'most_played_characters') and abyss_current.most_played_characters:
+            message_current += f"👑 **أكثر شخصية استخدامًا:** `{abyss_current.most_played_characters[0].name}` ({abyss_current.most_played_characters[0].value} مرات)\n"
         
         # جلب الدورة السابقة
         abyss_previous = await client.get_spiral_abyss(uid=uid, previous=True)
-        message += (
+        message_previous = (
             f"\n**⚔️ إحصائيات الدورة السابقة:**\n"
             f"✨ **الدور المكتمل:** `{abyss_previous.total_battles}`\n"
             f"⭐ **النجوم المكتسبة:** `{abyss_previous.total_stars}`\n"
         )
-       
-        await event.respond(message, parse_mode='md')
+        if hasattr(abyss_previous, 'most_played_characters') and abyss_previous.most_played_characters:
+            message_previous += f"👑 **أكثر شخصية استخدامًا:** `{abyss_previous.most_played_characters[0].name}` ({abyss_previous.most_played_characters[0].value} مرات)\n"
+
+        await event.respond(message_current + message_previous, parse_mode='md')
     
     except genshin.errors.InvalidCookies:
         await event.respond("❌ خطأ: ملفات تعريف الارتباط (Cookies) الخاصة بك غير صالحة. يرجى تحديثها باستخدام `/setcookies`.")
