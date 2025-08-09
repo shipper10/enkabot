@@ -37,9 +37,12 @@ GAMES_CONFIG = {
 
 # دالة لتحميل بيانات المستخدمين من ملف JSON
 def load_users_data():
-    if os.path.exists(USERS_DATA_FILE):
+    if os.path.exists(USERS_DATA_FILE) and os.stat(USERS_DATA_FILE).st_size != 0:
         with open(USERS_DATA_FILE, 'r') as f:
-            return json.load(f)
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                return {}
     return {}
 
 # دالة لحفظ بيانات المستخدمين في ملف JSON
@@ -258,7 +261,6 @@ async def button_handler(event):
 
 async def main():
     print("[✓] البوت يعمل...")
-    # 🌟 هذا السطر هو الإضافة التي تحتاجها 🌟
     await bot.start(bot_token=BOT_TOKEN)
     await bot.run_until_disconnected()
 
