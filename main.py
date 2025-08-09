@@ -1,11 +1,10 @@
 import os
 import json
 import asyncio
-import requests
-from bs4 import BeautifulSoup
 from telethon import TelegramClient, events, Button
 from telethon.tl.types import ChatBannedRights
 from telethon.errors import FloodWaitError
+import requests
 
 # معلومات البوت (يجب أن يتم تزويدها كمتغيرات بيئية على Koyeb)
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
@@ -13,20 +12,28 @@ API_ID = int(os.environ.get("API_ID"))
 API_HASH = os.environ.get("API_HASH")
 
 # اسم ملف الجلسة والبيانات
-SESSION_NAME = 'akasha_bot_session'
+SESSION_NAME = 'enka_bot_session'
 USERS_DATA_FILE = 'users_data.json'
 
-# القواميس الخاصة بالألعاب (تم التحديث ل Akasha.cv)
+# القواميس الخاصة بالألعاب (تم التحديث ل Enka.Network)
 GAMES_CONFIG = {
     'gen': {
         'name': 'Genshin Impact',
-        'url_template': "https://akasha.cv/profile/{uid}/",
-        'setuid_command': '/setuid_gen'
+        'api_url': "https://enka.network/api/uid/{uid}/",
+        'setuid_command': '/setuid_gen',
+        'image_base_url': "https://enka.network/ui/"
     },
     'hsr': {
         'name': 'Honkai: Star Rail',
-        'url_template': "https://akasha.cv/profile/{uid}/",
-        'setuid_command': '/setuid_hsr'
+        'api_url': "https://enka.network/api/hsr/uid/{uid}/",
+        'setuid_command': '/setuid_hsr',
+        'image_base_url': "https://enka.network/ui/"
+    },
+    'zzz': {
+        'name': 'Zenless Zone Zero',
+        'api_url': "https://enka.network/api/zzz/uid/{uid}/",
+        'setuid_command': '/setuid_zzz',
+        'image_base_url': "https://enka.network/ui/"
     }
 }
 
@@ -45,34 +52,32 @@ def save_users_data(data):
     with open(USERS_DATA_FILE, 'w') as f:
         json.dump(data, f, indent=4)
 
-# دالة لجلب أسماء الشخصيات وصورها من ملف Akasha.cv
-def fetch_akasha_data(game_key, uid):
-    print(f"[*] جلب بيانات الملف الشخصي لـUID: {uid} من لعبة {GAMES_CONFIG[game_key]['name']}...")
+# دالة جديدة لجلب بيانات الشخصيات من API
+def fetch_enka_api_data(game_key, uid):
+    print(f"[*] جلب بيانات الملف الشخصي لـUID: {uid} من لعبة {GAMES_CONFIG[game_key]['name']} باستخدام الـAPI...")
     try:
-        profile_url = GAMES_CONFIG[game_key]['url_template'].format(uid=uid)
-        response = requests.get(profile_url, timeout=15)
+        api_url = GAMES_CONFIG[game_key]['api_url'].format(uid=uid)
+        response = requests.get(api_url, timeout=15)
         response.raise_for_status()
-
-        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        data = response.json()
         
         characters_data = {}
-        # البحث عن عناصر الشخصيات في الصفحة
-        for char_div in soup.find_all('div', class_='character-card'):
-            char_name_div = char_div.find('h4', class_='character-card-name')
-            char_img = char_div.find('img', class_='character-image')
-            
-            if char_name_div and char_img:
-                character_name = char_name_div.text.strip()
-                image_url = char_img['src']
-                characters_data[character_name] = image_url
+        if 'avatarInfoList' in data:
+            for char_info in data['avatarInfoList']:
+                char_name = char_info.get('nameTextMapHash') # يتم التعرف على الاسم من الهاش
+                char_icon = char_info.get('image', {}).get('icon') # رابط الصورة
+
+                if char_name and char_icon:
+                    characters_data[char_name] = GAMES_CONFIG[game_key]['image_base_url'] + char_icon
         
         return characters_data
-
+    
     except requests.exceptions.RequestException as e:
-        print(f"[!] خطأ في جلب بيانات الملف الشخصي: {e}")
+        print(f"[!] خطأ في جلب بيانات الـAPI: {e}")
         return None
     except Exception as e:
-        print(f"[!] خطأ في تحليل HTML: {e}")
+        print(f"[!] خطأ في تحليل JSON: {e}")
         return None
 
 # تهيئة البوت باستخدام ملف الجلسة
@@ -83,20 +88,21 @@ bot = TelegramClient(SESSION_NAME, API_ID, API_HASH)
 @bot.on(events.NewMessage(pattern='/start'))
 async def start_handler(event):
     message = (
-        "أهلاً بك في بوت Akasha! 🤖\n"
+        "أهلاً بك في بوت Enka! 🤖\n"
         "لاستخدام البوت، قم أولاً بتعيين UID لكل لعبة:\n"
         "`/setuid_gen <uid>` (Genshin Impact)\n"
-        "`/setuid_hsr <uid>` (Honkai: Star Rail)\n\n"
+        "`/setuid_hsr <uid>` (Honkai: Star Rail)\n"
+        "`/setuid_zzz <uid>` (Zenless Zone Zero)\n\n"
         "بعدها، يمكنك:\n"
         "1. إرسال اسم الشخصية مع الأمر الخاص باللعبة:\n"
         "`/gen Eula`\n"
-        "2. أو عرض الشخصيات المتوفرة في ملفك الشخصي كأزرار:\n"
+        "2. أو عرض الشخصيات المتوفرة في واجهة العرض كأزرار:\n"
         "`/characters gen`"
     )
     await event.respond(message)
 
 # أمر لتعيين UID لكل لعبة
-@bot.on(events.NewMessage(pattern='/(setuid_gen|setuid_hsr)'))
+@bot.on(events.NewMessage(pattern='/(setuid_gen|setuid_hsr|setuid_zzz)'))
 async def setuid_handler(event):
     command_parts = event.text.split(' ', 1)
     command = command_parts[0].lstrip('/')
@@ -128,7 +134,7 @@ async def show_characters_handler(event):
     game_key = command_parts[1].strip().lower()
     
     if game_key not in GAMES_CONFIG:
-        await event.respond("اللعبة غير مدعومة. الألعاب المدعومة هي: gen, hsr")
+        await event.respond("اللعبة غير مدعومة. الألعاب المدعومة هي: gen, hsr, zzz")
         return
     
     user_id = str(event.sender_id)
@@ -139,19 +145,20 @@ async def show_characters_handler(event):
         return
     
     uid = users_data[user_id][game_key]
-    await event.respond("جارٍ جلب الشخصيات المتوفرة في ملفك الشخصي على Akasha.cv...")
+    await event.respond("جارٍ جلب الشخصيات المتوفرة في واجهة العرض...")
     
-    available_characters = fetch_akasha_data(game_key, uid)
+    characters_data = fetch_enka_api_data(game_key, uid)
     
-    if not available_characters:
-        await event.respond(f"لا توجد شخصيات متاحة في ملفك الشخصي على Akasha.cv لـUID `{uid}`. تأكد من أن ملفك الشخصي تم تحديثه بنجاح.")
+    if not characters_data:
+        await event.respond(f"لا توجد شخصيات متاحة في واجهة العرض لـUID `{uid}`. تأكد من أن حسابك عام وأن لديك شخصيات معروضة.")
         return
     
     # إنشاء الأزرار
     buttons = []
+    available_characters = list(characters_data.keys())
     for i in range(0, len(available_characters), 3):
         row = []
-        for char_name in list(available_characters.keys())[i:i+3]:
+        for char_name in available_characters[i:i+3]:
             row.append(Button.inline(char_name, f"character_{game_key}_{char_name}"))
         buttons.append(row)
         
@@ -162,7 +169,7 @@ async def show_characters_handler(event):
     )
 
 # أمر لجلب الشخصية من خلال كتابة اسمها
-@bot.on(events.NewMessage(pattern='/(gen|hsr)'))
+@bot.on(events.NewMessage(pattern='/(gen|hsr|zzz)'))
 async def character_handler_text(event):
     command_parts = event.text.split(' ', 1)
     if len(command_parts) < 2:
@@ -183,9 +190,13 @@ async def character_handler_text(event):
     
     await event.respond("جارٍ البحث عن الشخصية، يرجى الانتظار...")
     
-    characters_data = fetch_akasha_data(game_key, uid)
+    characters_data = fetch_enka_api_data(game_key, uid)
+
     if not characters_data or character_name not in characters_data:
-        await event.respond(f"لم يتم العثور على الشخصية '{character_name}' في ملفك الشخصي على Akasha.cv.")
+        await event.respond(
+            f"لم يتم العثور على صورة الشخصية '{character_name}' للعبة {GAMES_CONFIG[game_key]['name']}. "
+            f"تأكد من أن اسم الشخصية صحيح وأنها معروضة في واجهة العرض داخل اللعبة."
+        )
         return
 
     image_url = characters_data[character_name]
@@ -219,10 +230,11 @@ async def button_handler(event):
         
         await bot.edit_message(event.chat_id, event.message_id, "جارٍ البحث عن الشخصية...")
         
-        characters_data = fetch_akasha_data(game_key, uid)
+        characters_data = fetch_enka_api_data(game_key, uid)
         if not characters_data or character_name not in characters_data:
             await bot.edit_message(event.chat_id, event.message_id,
-                f"لم يتم العثور على الشخصية '{character_name}' في ملفك الشخصي على Akasha.cv."
+                f"لم يتم العثور على صورة الشخصية '{character_name}' للعبة {GAMES_CONFIG[game_key]['name']}. "
+                f"تأكد من أن اسم الشخصية صحيح وأنها معروضة في واجهة العرض داخل اللعبة."
             )
             return
 
