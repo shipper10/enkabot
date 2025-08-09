@@ -1,11 +1,11 @@
 import os
 import json
 import asyncio
+import requests
+from bs4 import BeautifulSoup
 from telethon import TelegramClient, events, Button
 from telethon.tl.types import ChatBannedRights
 from telethon.errors import FloodWaitError
-import requests
-from bs4 import BeautifulSoup
 
 # معلومات البوت (يجب أن يتم تزويدها كمتغيرات بيئية على Koyeb)
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
@@ -13,25 +13,20 @@ API_ID = int(os.environ.get("API_ID"))
 API_HASH = os.environ.get("API_HASH")
 
 # اسم ملف الجلسة والبيانات
-SESSION_NAME = 'enka_bot_session'
+SESSION_NAME = 'akasha_bot_session'
 USERS_DATA_FILE = 'users_data.json'
 
-# القواميس الخاصة بالألعاب
+# القواميس الخاصة بالألعاب (تم التحديث ل Akasha.cv)
 GAMES_CONFIG = {
     'gen': {
         'name': 'Genshin Impact',
-        'url_template': "https://enka.network/u/{uid}/",
+        'url_template': "https://akasha.cv/profile/{uid}/",
         'setuid_command': '/setuid_gen'
     },
     'hsr': {
         'name': 'Honkai: Star Rail',
-        'url_template': "https://enka.network/hsr/u/{uid}/",
+        'url_template': "https://akasha.cv/profile/{uid}/",
         'setuid_command': '/setuid_hsr'
-    },
-    'zzz': {
-        'name': 'Zenless Zone Zero',
-        'url_template': "https://enka.network/zzz/u/{uid}/",
-        'setuid_command': '/setuid_zzz'
     }
 }
 
@@ -50,49 +45,34 @@ def save_users_data(data):
     with open(USERS_DATA_FILE, 'w') as f:
         json.dump(data, f, indent=4)
 
-# دالة لجلب أسماء الشخصيات المتوفرة في واجهة العرض للمستخدم
-def fetch_profile_data(game_key, uid):
+# دالة لجلب أسماء الشخصيات وصورها من ملف Akasha.cv
+def fetch_akasha_data(game_key, uid):
     print(f"[*] جلب بيانات الملف الشخصي لـUID: {uid} من لعبة {GAMES_CONFIG[game_key]['name']}...")
     try:
         profile_url = GAMES_CONFIG[game_key]['url_template'].format(uid=uid)
         response = requests.get(profile_url, timeout=15)
         response.raise_for_status()
-        
+
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        characters_list = []
+        characters_data = {}
+        # البحث عن عناصر الشخصيات في الصفحة
         for char_div in soup.find_all('div', class_='character-card'):
-            char_name_div = char_div.find('div', class_='character-name')
-            if char_name_div:
+            char_name_div = char_div.find('h4', class_='character-card-name')
+            char_img = char_div.find('img', class_='character-image')
+            
+            if char_name_div and char_img:
                 character_name = char_name_div.text.strip()
-                characters_list.append(character_name)
+                image_url = char_img['src']
+                characters_data[character_name] = image_url
         
-        return characters_list
-    
+        return characters_data
+
     except requests.exceptions.RequestException as e:
         print(f"[!] خطأ في جلب بيانات الملف الشخصي: {e}")
         return None
     except Exception as e:
         print(f"[!] خطأ في تحليل HTML: {e}")
-        return None
-
-# دالة لجلب الصورة من Enka.Network
-def fetch_enka_image(game_key, uid, character_name):
-    # مثال على رابط صورة (قد يختلف الرابط الفعلي)
-    url_template = GAMES_CONFIG[game_key]['url_template']
-    enka_url = url_template.format(uid=uid)
-    image_url = f"{enka_url}images/{character_name.lower().replace(' ', '')}.png" 
-    
-    try:
-        response = requests.get(image_url, timeout=10)
-        if response.status_code == 200:
-            print("تم العثور على الصورة.")
-            return image_url
-        else:
-            print(f"لم يتم العثور على صورة بهذا الاسم. حالة الرد: {response.status_code}")
-            return None
-    except requests.exceptions.RequestException as e:
-        print(f"حدث خطأ في طلب الصورة: {e}")
         return None
 
 # تهيئة البوت باستخدام ملف الجلسة
@@ -103,21 +83,20 @@ bot = TelegramClient(SESSION_NAME, API_ID, API_HASH)
 @bot.on(events.NewMessage(pattern='/start'))
 async def start_handler(event):
     message = (
-        "أهلاً بك في بوت Enka! 🤖\n"
+        "أهلاً بك في بوت Akasha! 🤖\n"
         "لاستخدام البوت، قم أولاً بتعيين UID لكل لعبة:\n"
         "`/setuid_gen <uid>` (Genshin Impact)\n"
-        "`/setuid_hsr <uid>` (Honkai: Star Rail)\n"
-        "`/setuid_zzz <uid>` (Zenless Zone Zero)\n\n"
+        "`/setuid_hsr <uid>` (Honkai: Star Rail)\n\n"
         "بعدها، يمكنك:\n"
         "1. إرسال اسم الشخصية مع الأمر الخاص باللعبة:\n"
         "`/gen Eula`\n"
-        "2. أو عرض الشخصيات المتوفرة في واجهة العرض كأزرار:\n"
+        "2. أو عرض الشخصيات المتوفرة في ملفك الشخصي كأزرار:\n"
         "`/characters gen`"
     )
     await event.respond(message)
 
 # أمر لتعيين UID لكل لعبة
-@bot.on(events.NewMessage(pattern='/(setuid_gen|setuid_hsr|setuid_zzz)'))
+@bot.on(events.NewMessage(pattern='/(setuid_gen|setuid_hsr)'))
 async def setuid_handler(event):
     command_parts = event.text.split(' ', 1)
     command = command_parts[0].lstrip('/')
@@ -149,7 +128,7 @@ async def show_characters_handler(event):
     game_key = command_parts[1].strip().lower()
     
     if game_key not in GAMES_CONFIG:
-        await event.respond("اللعبة غير مدعومة. الألعاب المدعومة هي: gen, hsr, zzz")
+        await event.respond("اللعبة غير مدعومة. الألعاب المدعومة هي: gen, hsr")
         return
     
     user_id = str(event.sender_id)
@@ -160,19 +139,19 @@ async def show_characters_handler(event):
         return
     
     uid = users_data[user_id][game_key]
-    await event.respond("جارٍ جلب الشخصيات المتوفرة في واجهة العرض...")
+    await event.respond("جارٍ جلب الشخصيات المتوفرة في ملفك الشخصي على Akasha.cv...")
     
-    available_characters = fetch_profile_data(game_key, uid)
+    available_characters = fetch_akasha_data(game_key, uid)
     
     if not available_characters:
-        await event.respond(f"لا توجد شخصيات متاحة في واجهة العرض لـUID `{uid}`. تأكد من أن حسابك عام وأن لديك شخصيات معروضة.")
+        await event.respond(f"لا توجد شخصيات متاحة في ملفك الشخصي على Akasha.cv لـUID `{uid}`. تأكد من أن ملفك الشخصي تم تحديثه بنجاح.")
         return
     
     # إنشاء الأزرار
     buttons = []
     for i in range(0, len(available_characters), 3):
         row = []
-        for char_name in available_characters[i:i+3]:
+        for char_name in list(available_characters.keys())[i:i+3]:
             row.append(Button.inline(char_name, f"character_{game_key}_{char_name}"))
         buttons.append(row)
         
@@ -183,7 +162,7 @@ async def show_characters_handler(event):
     )
 
 # أمر لجلب الشخصية من خلال كتابة اسمها
-@bot.on(events.NewMessage(pattern='/(gen|hsr|zzz)'))
+@bot.on(events.NewMessage(pattern='/(gen|hsr)'))
 async def character_handler_text(event):
     command_parts = event.text.split(' ', 1)
     if len(command_parts) < 2:
@@ -191,7 +170,7 @@ async def character_handler_text(event):
         return
     
     game_key = command_parts[0].lstrip('/')
-    character_name = command_parts[1].strip().replace(" ", "").lower()
+    character_name = command_parts[1].strip()
     
     user_id = str(event.sender_id)
     users_data = load_users_data()
@@ -204,21 +183,20 @@ async def character_handler_text(event):
     
     await event.respond("جارٍ البحث عن الشخصية، يرجى الانتظار...")
     
-    image_url = fetch_enka_image(game_key, uid, character_name)
+    characters_data = fetch_akasha_data(game_key, uid)
+    if not characters_data or character_name not in characters_data:
+        await event.respond(f"لم يتم العثور على الشخصية '{character_name}' في ملفك الشخصي على Akasha.cv.")
+        return
+
+    image_url = characters_data[character_name]
     
-    if image_url:
-        try:
-            await event.respond(file=image_url)
-        except FloodWaitError as e:
-            await asyncio.sleep(e.seconds)
-            await event.respond(file=image_url)
-        except Exception as e:
-            await event.respond(f"حدث خطأ أثناء إرسال الصورة: {e}")
-    else:
-        await event.respond(
-            f"لم يتم العثور على صورة الشخصية '{character_name}' للعبة {GAMES_CONFIG[game_key]['name']}. "
-            f"تأكد من أن اسم الشخصية صحيح وأنها معروضة في واجهة العرض داخل اللعبة."
-        )
+    try:
+        await event.respond(file=image_url)
+    except FloodWaitError as e:
+        await asyncio.sleep(e.seconds)
+        await event.respond(file=image_url)
+    except Exception as e:
+        await event.respond(f"حدث خطأ أثناء إرسال الصورة: {e}")
 
 
 # معالج الأزرار
@@ -241,23 +219,24 @@ async def button_handler(event):
         
         await bot.edit_message(event.chat_id, event.message_id, "جارٍ البحث عن الشخصية...")
         
-        image_url = fetch_enka_image(game_key, uid, character_name)
-        
-        if image_url:
-            try:
-                await bot.send_file(event.chat_id, file=image_url)
-                await event.delete()
-            except FloodWaitError as e:
-                await asyncio.sleep(e.seconds)
-                await bot.send_file(event.chat_id, file=image_url)
-                await event.delete()
-            except Exception as e:
-                await bot.edit_message(event.chat_id, event.message_id, f"حدث خطأ أثناء إرسال الصورة: {e}")
-        else:
+        characters_data = fetch_akasha_data(game_key, uid)
+        if not characters_data or character_name not in characters_data:
             await bot.edit_message(event.chat_id, event.message_id,
-                f"لم يتم العثور على صورة الشخصية '{character_name}' للعبة {GAMES_CONFIG[game_key]['name']}. "
-                f"تأكد من أن اسم الشخصية صحيح وأنها معروضة في واجهة العرض داخل اللعبة."
+                f"لم يتم العثور على الشخصية '{character_name}' في ملفك الشخصي على Akasha.cv."
             )
+            return
+
+        image_url = characters_data[character_name]
+        
+        try:
+            await bot.send_file(event.chat_id, file=image_url)
+            await event.delete()
+        except FloodWaitError as e:
+            await asyncio.sleep(e.seconds)
+            await bot.send_file(event.chat_id, file=image_url)
+            await event.delete()
+        except Exception as e:
+            await bot.edit_message(event.chat_id, event.message_id, f"حدث خطأ أثناء إرسال الصورة: {e}")
 
 async def main():
     print("[✓] البوت يعمل...")
