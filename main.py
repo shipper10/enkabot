@@ -225,7 +225,7 @@ async def showcase_handler(event):
     await event.respond("جارٍ جلب الشخصيات من واجهة العرض الخاصة بك...")
 
     try:
-        characters = await client.get_characters(uid=uid)
+        characters = await client.get_showcase(uid=uid)
         
         if not characters:
             await event.respond("❌ لا توجد شخصيات في واجهة العرض. تأكد من أن حسابك عام وأن لديك شخصيات معروضة.")
@@ -259,7 +259,7 @@ async def detailed_characters_handler(event):
     await event.respond("جارٍ جلب تفاصيل الشخصيات من واجهة العرض...")
 
     try:
-        characters = await client.get_characters(uid=uid)
+        characters = await client.get_showcase(uid=uid)
         
         if not characters:
             await event.respond("❌ لا توجد شخصيات في واجهة العرض. تأكد من أن حسابك عام وأن لديك شخصيات معروضة.")
