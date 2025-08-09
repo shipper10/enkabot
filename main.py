@@ -5,6 +5,7 @@ import genshin
 from telethon import TelegramClient, events
 from telethon.errors import FloodWaitError
 from datetime import datetime
+import humanize # تم إضافة هذه المكتبة
 
 # معلومات البوت (من متغيرات البيئة)
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
@@ -27,7 +28,7 @@ def load_users_data():
 # دالة لحفظ بيانات المستخدمين في ملف JSON
 def save_users_data(data):
     with open(USERS_DATA_FILE, 'w') as f:
-        json.dump(data, f, indent=4)
+        json.dump(data, data, indent=4)
 
 # تهيئة البوت
 bot = TelegramClient('genshin_multi_user_session', API_ID, API_HASH)
@@ -104,7 +105,7 @@ async def stats_handler(event):
         message = (
             f"**📊 إحصائيات HoYoLAB:**\n"
             f"💧 **الريزن الأصلي:** {notes.current_resin}/{notes.max_resin}\n"
-            f"⏰ **متبقي لاستعادة الريزن:** {notes.resin_recovery_time.humanize(locale='ar')}\n"
+            f"⏰ **متبقي لاستعادة الريزن:** {humanize.naturaltime(notes.resin_recovery_time)}\n"
             f"📦 **مهمات اليوم:** {notes.completed_commissions}/{notes.max_commissions}\n"
             f"✨ **قوة الكاوشيوم الأسبوعية:** {notes.current_weekly_boss_resin}/{notes.max_weekly_boss_resin}\n"
             f"🗺️ **البعثات:** {notes.completed_expeditions}/{notes.max_expeditions}"
