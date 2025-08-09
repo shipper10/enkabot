@@ -1,41 +1,18 @@
 import os
 import json
 import asyncio
-from telethon import TelegramClient, events, Button
-from telethon.tl.types import ChatBannedRights
+import genshin
+from telethon import TelegramClient, events
 from telethon.errors import FloodWaitError
-import requests
+from datetime import datetime
 
-# معلومات البوت (يجب أن يتم تزويدها كمتغيرات بيئية على Koyeb)
+# معلومات البوت (من متغيرات البيئة)
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 API_ID = int(os.environ.get("API_ID"))
 API_HASH = os.environ.get("API_HASH")
 
-# اسم ملف الجلسة والبيانات
-SESSION_NAME = 'enka_bot_session'
+# اسم ملف البيانات
 USERS_DATA_FILE = 'users_data.json'
-
-# القواميس الخاصة بالألعاب
-GAMES_CONFIG = {
-    'gen': {
-        'name': 'Genshin Impact',
-        'api_url': "https://enka.network/api/uid/{uid}/",
-        'setuid_command': '/setuid_gen',
-        'image_base_url': "https://enka.network/ui/"
-    },
-    'hsr': {
-        'name': 'Honkai: Star Rail',
-        'api_url': "https://enka.network/api/hsr/uid/{uid}/",
-        'setuid_command': '/setuid_hsr',
-        'image_base_url': "https://enka.network/ui/"
-    },
-    'zzz': {
-        'name': 'Zenless Zone Zero',
-        'api_url': "https://enka.network/api/zzz/uid/{uid}/",
-        'setuid_command': '/setuid_zzz',
-        'image_base_url': "https://enka.network/ui/"
-    }
-}
 
 # دالة لتحميل بيانات المستخدمين من ملف JSON
 def load_users_data():
@@ -52,224 +29,212 @@ def save_users_data(data):
     with open(USERS_DATA_FILE, 'w') as f:
         json.dump(data, f, indent=4)
 
-# -------------------------------------------------------------
-# الدالة التالية هي التي تم تعديلها لإضافة أوامر الطباعة (print)
-# -------------------------------------------------------------
-def fetch_enka_api_data(game_key, uid):
-    print(f"[*] جلب بيانات الملف الشخصي لـUID: {uid} من لعبة {GAMES_CONFIG[game_key]['name']} باستخدام الـAPI...")
-    
-    api_url = GAMES_CONFIG[game_key]['api_url'].format(uid=uid)
-    print(f"[*] الرابط المستخدم: {api_url}")
-    
-    try:
-        response = requests.get(api_url, timeout=15)
-        print(f"[*] حالة استجابة الـAPI: {response.status_code}")
-        
-        response.raise_for_status() # إظهار خطأ إذا لم تكن الحالة 200
-        
-        data = response.json()
-        print("[*] تم استلام بيانات JSON بنجاح.")
-        
-        characters_data = {}
-        if 'avatarInfoList' in data:
-            for char_info in data['avatarInfoList']:
-                char_name = char_info.get('nameTextMapHash') 
-                char_icon = char_info.get('image', {}).get('icon') 
+# تهيئة البوت
+bot = TelegramClient('genshin_multi_user_session', API_ID, API_HASH)
 
-                if char_name and char_icon:
-                    # بناء رابط الصورة الكامل
-                    image_url = GAMES_CONFIG[game_key]['image_base_url'] + char_icon
-                    characters_data[char_name] = image_url
-        
-        print(f"[*] تم العثور على الشخصيات التالية: {list(characters_data.keys())}")
-        
-        if not characters_data:
-            print("[!] لم يتم العثور على أي شخصيات في البيانات المستلمة.")
-            
-        return characters_data
+# دالة مساعدة لإنشاء عميل genshin.py لكل مستخدم
+def get_genshin_client(user_id):
+    users_data = load_users_data()
+    if user_id not in users_data:
+        return None, None
     
-    except requests.exceptions.HTTPError as e:
-        print(f"[!] خطأ في الـAPI (استجابة HTTP غير ناجحة): {e}")
-        return None
-    except requests.exceptions.RequestException as e:
-        print(f"[!] خطأ في الاتصال بالـAPI: {e}")
-        return None
-    except Exception as e:
-        print(f"[!] خطأ في معالجة البيانات: {e}")
-        return None
-# -------------------------------------------------------------
-# نهاية الدالة المعدلة
-# -------------------------------------------------------------
+    ltuid_v2 = users_data[user_id]['ltuid_v2']
+    ltoken_v2 = users_data[user_id]['ltoken_v2']
+    
+    client = genshin.Client({"ltuid_v2": ltuid_v2, "ltoken_v2": ltoken_v2})
+    return client, ltuid_v2
 
-# تهيئة البوت باستخدام ملف الجلسة
-bot = TelegramClient(SESSION_NAME, API_ID, API_HASH)
-
-# ----- أوامر البوت -----
+# ----- الأوامر العامة -----
 
 @bot.on(events.NewMessage(pattern='/start'))
 async def start_handler(event):
     message = (
-        "أهلاً بك في بوت Enka! 🤖\n"
-        "لاستخدام البوت، قم أولاً بتعيين UID لكل لعبة:\n"
-        "`/setuid_gen <uid>` (Genshin Impact)\n"
-        "`/setuid_hsr <uid>` (Honkai: Star Rail)\n"
-        "`/setuid_zzz <uid>` (Zenless Zone Zero)\n\n"
-        "بعدها، يمكنك:\n"
-        "1. إرسال اسم الشخصية مع الأمر الخاص باللعبة:\n"
-        "`/gen Eula`\n"
-        "2. أو عرض الشخصيات المتوفرة في واجهة العرض كأزرار:\n"
-        "`/characters gen`"
+        "أهلاً بك في بوت إحصائيات Genshin Impact! 🤖\n\n"
+        "للبدء، يرجى ربط حسابك عن طريق إرسال ملفات تعريف الارتباط (Cookies) الخاصة بك في محادثة خاصة معي.\n\n"
+        "**الأمر:** `/setcookies <ltuid_v2> <ltoken_v2>`\n\n"
+        "**تنبيه:** هذا الأمر يعمل فقط في محادثة خاصة لضمان أمان بياناتك."
     )
     await event.respond(message)
 
-# أمر لتعيين UID لكل لعبة
-@bot.on(events.NewMessage(pattern='/(setuid_gen|setuid_hsr|setuid_zzz)'))
-async def setuid_handler(event):
-    command_parts = event.text.split(' ', 1)
-    command = command_parts[0].lstrip('/')
-    uid_str = command_parts[1].strip() if len(command_parts) > 1 else ''
-    
-    game_key = command.split('_')[1]
-    
-    users_data = load_users_data()
-    user_id = str(event.sender_id)
-    
-    if user_id not in users_data:
-        users_data[user_id] = {}
-
-    if uid_str.isdigit() and len(uid_str) in [9, 10]:
-        users_data[user_id][game_key] = uid_str
-        save_users_data(users_data)
-        await event.respond(f"تم حفظ UID الخاص بـ {GAMES_CONFIG[game_key]['name']}: `{uid_str}`")
-    else:
-        await event.respond(f"يرجى إدخال UID صحيح. مثال: `{GAMES_CONFIG[game_key]['setuid_command']} 123456789`")
-
-# أمر لعرض الشخصيات على شكل أزرار
-@bot.on(events.NewMessage(pattern='/characters'))
-async def show_characters_handler(event):
-    command_parts = event.text.split(' ', 1)
-    if len(command_parts) < 2:
-        await event.respond("يرجى تحديد اللعبة.\nمثال: `/characters gen`")
-        return
-    
-    game_key = command_parts[1].strip().lower()
-    
-    if game_key not in GAMES_CONFIG:
-        await event.respond("اللعبة غير مدعومة. الألعاب المدعومة هي: gen, hsr, zzz")
-        return
-    
-    user_id = str(event.sender_id)
-    users_data = load_users_data()
-    
-    if user_id not in users_data or game_key not in users_data[user_id]:
-        await event.respond(f"لم يتم تعيين UID للعبة {GAMES_CONFIG[game_key]['name']} بعد. يرجى استخدام أمر `{GAMES_CONFIG[game_key]['setuid_command']}` أولاً.")
-        return
-    
-    uid = users_data[user_id][game_key]
-    await event.respond("جارٍ جلب الشخصيات المتوفرة في واجهة العرض...")
-    
-    characters_data = fetch_enka_api_data(game_key, uid)
-    
-    if not characters_data:
-        await event.respond(f"لا توجد شخصيات متاحة في واجهة العرض لـUID `{uid}`. تأكد من أن حسابك عام وأن لديك شخصيات معروضة.")
-        return
-    
-    # إنشاء الأزرار
-    buttons = []
-    available_characters = list(characters_data.keys())
-    for i in range(0, len(available_characters), 3):
-        row = []
-        for char_name in available_characters[i:i+3]:
-            row.append(Button.inline(char_name, f"character_{game_key}_{char_name}"))
-        buttons.append(row)
-        
-    await bot.send_message(
-        event.chat_id,
-        f"اختر شخصية من لعبة {GAMES_CONFIG[game_key]['name']} (المتوفرة حالياً):",
-        buttons=buttons
-    )
-
-# أمر لجلب الشخصية من خلال كتابة اسمها
-@bot.on(events.NewMessage(pattern='/(gen|hsr|zzz)'))
-async def character_handler_text(event):
-    command_parts = event.text.split(' ', 1)
-    if len(command_parts) < 2:
-        await event.respond(f"يرجى إدخال اسم الشخصية بعد الأمر.")
-        return
-    
-    game_key = command_parts[0].lstrip('/')
-    character_name = command_parts[1].strip()
-    
-    user_id = str(event.sender_id)
-    users_data = load_users_data()
-    
-    if user_id not in users_data or game_key not in users_data[user_id]:
-        await event.respond(f"لم يتم تعيين UID للعبة {GAMES_CONFIG[game_key]['name']} بعد. يرجى استخدام أمر `{GAMES_CONFIG[game_key]['setuid_command']}` أولاً.")
+@bot.on(events.NewMessage(pattern='/setcookies'))
+async def setcookies_handler(event):
+    if not event.is_private:
+        await event.reply("❌ هذا الأمر متاح فقط في محادثة خاصة لضمان أمان بياناتك.")
         return
 
-    uid = users_data[user_id][game_key]
-    
-    await event.respond("جارٍ البحث عن الشخصية، يرجى الانتظار...")
-    
-    characters_data = fetch_enka_api_data(game_key, uid)
-
-    if not characters_data or character_name not in characters_data:
-        await event.respond(
-            f"لم يتم العثور على صورة الشخصية '{character_name}' للعبة {GAMES_CONFIG[game_key]['name']}. "
-            f"تأكد من أن اسم الشخصية صحيح وأنها معروضة في واجهة العرض داخل اللعبة."
-        )
+    command_parts = event.text.split(' ', 2)
+    if len(command_parts) < 3:
+        await event.respond("❌ يرجى إدخال ltuid_v2 و ltoken_v2.\n\n"
+                            "**مثال:** `/setcookies 123456789 aBcDeFg`")
         return
-
-    image_url = characters_data[character_name]
     
     try:
-        await event.respond(file=image_url)
-    except FloodWaitError as e:
-        await asyncio.sleep(e.seconds)
-        await event.respond(file=image_url)
-    except Exception as e:
-        await event.respond(f"حدث خطأ أثناء إرسال الصورة: {e}")
-
-
-# معالج الأزرار
-@bot.on(events.CallbackQuery())
-async def button_handler(event):
-    data_str = event.data.decode('utf-8')
-    if data_str.startswith('character_'):
-        parts = data_str.split('_')
-        game_key = parts[1]
-        character_name = parts[2]
-        
+        ltuid_v2 = int(command_parts[1])
+        ltoken_v2 = command_parts[2]
         user_id = str(event.sender_id)
+
         users_data = load_users_data()
+        users_data[user_id] = {'ltuid_v2': ltuid_v2, 'ltoken_v2': ltoken_v2}
+        save_users_data(users_data)
         
-        if user_id not in users_data or game_key not in users_data[user_id]:
-            await event.respond(f"لم يتم تعيين UID للعبة {GAMES_CONFIG[game_key]['name']} بعد. يرجى استخدام أمر `{GAMES_CONFIG[game_key]['setuid_command']}` أولاً.", alert=True)
-            return
+        await event.respond("✅ تم حفظ بيانات حسابك بنجاح! يمكنك الآن استخدام الأوامر الأخرى.")
+    except ValueError:
+        await event.respond("❌ خطأ: تأكد من أن ltuid_v2 هو رقم صحيح.")
+    except Exception as e:
+        await event.respond(f"❌ حدث خطأ أثناء حفظ البيانات: {e}")
 
-        uid = users_data[user_id][game_key]
-        
-        await bot.edit_message(event.chat_id, event.message_id, "جارٍ البحث عن الشخصية...")
-        
-        characters_data = fetch_enka_api_data(game_key, uid)
-        if not characters_data or character_name not in characters_data:
-            await bot.edit_message(event.chat_id, event.message_id,
-                f"لم يتم العثور على صورة الشخصية '{character_name}' للعبة {GAMES_CONFIG[game_key]['name']}. "
-                f"تأكد من أن اسم الشخصية صحيح وأنها معروضة في واجهة العرض داخل اللعبة."
-            )
-            return
+# ----- أوامر الإحصائيات العامة -----
 
-        image_url = characters_data[character_name]
+@bot.on(events.NewMessage(pattern='/stats'))
+async def stats_handler(event):
+    user_id = str(event.sender_id)
+    client, uid = get_genshin_client(user_id)
+    
+    if not client:
+        await event.respond("❌ لم يتم ربط حسابك بعد. يرجى استخدام أمر `/setcookies` في محادثة خاصة معي أولاً.")
+        return
+
+    await event.respond("جارٍ جلب إحصائيات حسابك من HoYoLAB، يرجى الانتظار...")
+    
+    try:
+        notes = await client.get_notes(uid=uid)
         
-        try:
-            await bot.send_file(event.chat_id, file=image_url)
-            await event.delete()
-        except FloodWaitError as e:
-            await asyncio.sleep(e.seconds)
-            await bot.send_file(event.chat_id, file=image_url)
-            await event.delete()
-        except Exception as e:
-            await bot.edit_message(event.chat_id, event.message_id, f"حدث خطأ أثناء إرسال الصورة: {e}")
+        message = (
+            f"**📊 إحصائيات HoYoLAB:**\n"
+            f"💧 **الريزن الأصلي:** {notes.current_resin}/{notes.max_resin}\n"
+            f"⏰ **متبقي لاستعادة الريزن:** {notes.resin_recovery_time.humanize(locale='ar')}\n"
+            f"📦 **مهمات اليوم:** {notes.completed_commissions}/{notes.max_commissions}\n"
+            f"✨ **قوة الكاوشيوم الأسبوعية:** {notes.current_weekly_boss_resin}/{notes.max_weekly_boss_resin}\n"
+            f"🗺️ **البعثات:** {notes.completed_expeditions}/{notes.max_expeditions}"
+        )
+        
+        await event.respond(message)
+    
+    except genshin.errors.InvalidCookies:
+        await event.respond("❌ خطأ: ملفات تعريف الارتباط (Cookies) الخاصة بك غير صالحة. يرجى تحديثها باستخدام `/setcookies`.")
+    except Exception as e:
+        await event.respond(f"❌ حدث خطأ غير متوقع: {e}")
+
+# ----- أمر جلب معلومات الـSpiral Abyss -----
+
+@bot.on(events.NewMessage(pattern='/abyss'))
+async def abyss_handler(event):
+    user_id = str(event.sender_id)
+    client, uid = get_genshin_client(user_id)
+    
+    if not client:
+        await event.respond("❌ لم يتم ربط حسابك بعد. يرجى استخدام أمر `/setcookies` في محادثة خاصة معي أولاً.")
+        return
+
+    await event.respond("جارٍ جلب إحصائيات الـSpiral Abyss...")
+    
+    try:
+        abyss = await client.get_spiral_abyss(uid=uid)
+        
+        message = (
+            f"**⚔️ إحصائيات الـSpiral Abyss (الدورة الحالية):**\n"
+            f"✨ **الدور المكتمل:** {abyss.total_battles}\n"
+            f"⭐ **النجوم المكتسبة:** {abyss.total_stars}\n"
+            f"👑 **أعلى فوز:** {abyss.most_played_characters[0].name} ({abyss.most_played_characters[0].value} مرات)"
+        )
+        
+        await event.respond(message)
+    
+    except genshin.errors.InvalidCookies:
+        await event.respond("❌ خطأ: ملفات تعريف الارتباط (Cookies) الخاصة بك غير صالحة. يرجى تحديثها باستخدام `/setcookies`.")
+    except Exception as e:
+        await event.respond(f"❌ حدث خطأ غير متوقع: {e}")
+
+# ----- أمر تسجيل الدخول اليومي -----
+
+@bot.on(events.NewMessage(pattern='/checkin'))
+async def checkin_handler(event):
+    user_id = str(event.sender_id)
+    client, uid = get_genshin_client(user_id)
+    
+    if not client:
+        await event.respond("❌ لم يتم ربط حسابك بعد. يرجى استخدام أمر `/setcookies` في محادثة خاصة معي أولاً.")
+        return
+
+    await event.respond("جارٍ تسجيل الدخول اليومي...")
+    
+    try:
+        reward = await client.claim_daily_reward()
+        message = (
+            f"🎁 **تم تسجيل الدخول بنجاح!**\n"
+            f"لقد حصلت على: {reward.amount}x {reward.name}\n"
+            f"لقد قمت بتسجيل الدخول لـ **{reward.day}** يومًا هذا الشهر."
+        )
+        await event.respond(message)
+    
+    except genshin.errors.AlreadyClaimed:
+        await event.respond("✅ لقد قمت بتسجيل الدخول اليوم بالفعل!")
+    except genshin.errors.InvalidCookies:
+        await event.respond("❌ خطأ: ملفات تعريف الارتباط (Cookies) الخاصة بك غير صالحة. يرجى تحديثها باستخدام `/setcookies`.")
+    except Exception as e:
+        await event.respond(f"❌ حدث خطأ غير متوقع: {e}")
+
+# ----- أمر جلب قائمة الشخصيات في واجهة العرض -----
+
+@bot.on(events.NewMessage(pattern='/showcase'))
+async def showcase_handler(event):
+    user_id = str(event.sender_id)
+    client, uid = get_genshin_client(user_id)
+
+    if not client:
+        await event.respond("❌ لم يتم ربط حسابك بعد. يرجى استخدام أمر `/setcookies` في محادثة خاصة معي أولاً.")
+        return
+
+    await event.respond("جارٍ جلب الشخصيات من واجهة العرض الخاصة بك...")
+
+    try:
+        characters = await client.get_characters(uid=uid)
+        
+        if not characters:
+            await event.respond("❌ لا توجد شخصيات في واجهة العرض. تأكد من أن حسابك عام وأن لديك شخصيات معروضة.")
+            return
+        
+        character_names = [char.name for char in characters]
+        message = (
+            f"**👤 شخصياتك في واجهة العرض:**\n"
+            f"{', '.join(character_names)}"
+        )
+        await event.respond(message)
+
+    except genshin.errors.DataNotPublic:
+        await event.respond("❌ خطأ: ملفك الشخصي ليس عامًا. يرجى التأكد من أن إعدادات العرض في اللعبة عامة.")
+    except genshin.errors.InvalidCookies:
+        await event.respond("❌ خطأ: ملفات تعريف الارتباط (Cookies) الخاصة بك غير صالحة. يرجى تحديثها باستخدام `/setcookies`.")
+    except Exception as e:
+        await event.respond(f"❌ حدث خطأ غير متوقع: {e}")
+
+# ----- أمر جلب ملخص أرباح Primogems و Mora (الدفتر اليومي) -----
+
+@bot.on(events.NewMessage(pattern='/diary'))
+async def diary_handler(event):
+    user_id = str(event.sender_id)
+    client, uid = get_genshin_client(user_id)
+
+    if not client:
+        await event.respond("❌ لم يتم ربط حسابك بعد. يرجى استخدام أمر `/setcookies` في محادثة خاصة معي أولاً.")
+        return
+    
+    await event.respond("جارٍ جلب ملخص الدفتر اليومي...")
+
+    try:
+        diary = await client.get_diary(uid=uid)
+        
+        message = (
+            f"**💰 ملخص الدفتر اليومي (شهر {diary.month}):**\n"
+            f"💎 **Primogems هذا الشهر:** {diary.data.primogems}\n"
+            f"💵 **Mora هذا الشهر:** {diary.data.mora}"
+        )
+        await event.respond(message)
+
+    except genshin.errors.InvalidCookies:
+        await event.respond("❌ خطأ: ملفات تعريف الارتباط (Cookies) الخاصة بك غير صالحة. يرجى تحديثها باستخدام `/setcookies`.")
+    except Exception as e:
+        await event.respond(f"❌ حدث خطأ غير متوقع: {e}")
 
 async def main():
     print("[✓] البوت يعمل...")
