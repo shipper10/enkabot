@@ -15,7 +15,7 @@ API_HASH = os.environ.get("API_HASH")
 SESSION_NAME = 'enka_bot_session'
 USERS_DATA_FILE = 'users_data.json'
 
-# القواميس الخاصة بالألعاب (تم التحديث ل Enka.Network)
+# القواميس الخاصة بالألعاب
 GAMES_CONFIG = {
     'gen': {
         'name': 'Genshin Impact',
@@ -52,33 +52,54 @@ def save_users_data(data):
     with open(USERS_DATA_FILE, 'w') as f:
         json.dump(data, f, indent=4)
 
-# دالة جديدة لجلب بيانات الشخصيات من API
+# -------------------------------------------------------------
+# الدالة التالية هي التي تم تعديلها لإضافة أوامر الطباعة (print)
+# -------------------------------------------------------------
 def fetch_enka_api_data(game_key, uid):
     print(f"[*] جلب بيانات الملف الشخصي لـUID: {uid} من لعبة {GAMES_CONFIG[game_key]['name']} باستخدام الـAPI...")
+    
+    api_url = GAMES_CONFIG[game_key]['api_url'].format(uid=uid)
+    print(f"[*] الرابط المستخدم: {api_url}")
+    
     try:
-        api_url = GAMES_CONFIG[game_key]['api_url'].format(uid=uid)
         response = requests.get(api_url, timeout=15)
-        response.raise_for_status()
+        print(f"[*] حالة استجابة الـAPI: {response.status_code}")
+        
+        response.raise_for_status() # إظهار خطأ إذا لم تكن الحالة 200
         
         data = response.json()
+        print("[*] تم استلام بيانات JSON بنجاح.")
         
         characters_data = {}
         if 'avatarInfoList' in data:
             for char_info in data['avatarInfoList']:
-                char_name = char_info.get('nameTextMapHash') # يتم التعرف على الاسم من الهاش
-                char_icon = char_info.get('image', {}).get('icon') # رابط الصورة
+                char_name = char_info.get('nameTextMapHash') 
+                char_icon = char_info.get('image', {}).get('icon') 
 
                 if char_name and char_icon:
-                    characters_data[char_name] = GAMES_CONFIG[game_key]['image_base_url'] + char_icon
+                    # بناء رابط الصورة الكامل
+                    image_url = GAMES_CONFIG[game_key]['image_base_url'] + char_icon
+                    characters_data[char_name] = image_url
         
+        print(f"[*] تم العثور على الشخصيات التالية: {list(characters_data.keys())}")
+        
+        if not characters_data:
+            print("[!] لم يتم العثور على أي شخصيات في البيانات المستلمة.")
+            
         return characters_data
     
+    except requests.exceptions.HTTPError as e:
+        print(f"[!] خطأ في الـAPI (استجابة HTTP غير ناجحة): {e}")
+        return None
     except requests.exceptions.RequestException as e:
-        print(f"[!] خطأ في جلب بيانات الـAPI: {e}")
+        print(f"[!] خطأ في الاتصال بالـAPI: {e}")
         return None
     except Exception as e:
-        print(f"[!] خطأ في تحليل JSON: {e}")
+        print(f"[!] خطأ في معالجة البيانات: {e}")
         return None
+# -------------------------------------------------------------
+# نهاية الدالة المعدلة
+# -------------------------------------------------------------
 
 # تهيئة البوت باستخدام ملف الجلسة
 bot = TelegramClient(SESSION_NAME, API_ID, API_HASH)
