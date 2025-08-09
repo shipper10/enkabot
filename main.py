@@ -54,9 +54,30 @@ async def start_handler(event):
         "أهلاً بك في بوت إحصائيات Genshin Impact! 🤖\n\n"
         "للبدء، يرجى ربط حسابك عن طريق إرسال ملفات تعريف الارتباط (Cookies) الخاصة بك والـUID في محادثة خاصة معي.\n\n"
         "**الأمر:** `/setcookies <ltuid_v2> <ltoken_v2> <uid>`\n\n"
-        "**تنبيه:** هذا الأمر يعمل فقط في محادثة خاصة لضمان أمان بياناتك."
+        "**تنبيه:** هذا الأمر يعمل فقط في محادثة خاصة لضمان أمان بياناتك. للحصول على قائمة بالأوامر، استخدم `/help`."
     )
     await event.respond(message)
+
+@bot.on(events.NewMessage(pattern='/help'))
+async def help_handler(event):
+    message = (
+        "**📜 قائمة الأوامر المتاحة:**\n\n"
+        "1.  `/setcookies <ltuid_v2> <ltoken_v2> <uid>`\n"
+        "    ▫️ **لربط حسابك.** يعمل فقط في محادثة خاصة.\n\n"
+        "2.  `/stats`\n"
+        "    ▫️ **لجلب إحصائيات حسابك** (الريزن، المهمات، البعثات).\n\n"
+        "3.  `/abyss`\n"
+        "    ▫️ **لجلب إحصائيات الـSpiral Abyss** (الدورة الحالية والسابقة).\n\n"
+        "4.  `/showcase`\n"
+        "    ▫️ **لجلب قائمة الشخصيات في واجهة العرض** الخاصة بك.\n\n"
+        "5.  `/characters`\n"
+        "    ▫️ **لجلب قائمة الشخصيات في واجهة العرض** مع تفاصيل كاملة (المستوى، السلاح، القطع الأثرية).\n\n"
+        "6.  `/checkin`\n"
+        "    ▫️ **لتسجيل الدخول اليومي** تلقائيًا في HoYoLAB.\n\n"
+        "7.  `/diary`\n"
+        "    ▫️ **لجلب ملخص الدفتر اليومي** (أرباح Primogems و Mora)."
+    )
+    await event.respond(message, parse_mode='md')
 
 @bot.on(events.NewMessage(pattern='/setcookies'))
 async def setcookies_handler(event):
@@ -104,10 +125,10 @@ async def stats_handler(event):
         
         message = (
             f"**📊 إحصائيات HoYoLAB:**\n"
-            f"💧 **الريزن الأصلي:** {notes.current_resin}/{notes.max_resin}\n"
-            f"⏰ **متبقي لاستعادة الريزن:** {notes.resin_recovery_time.humanize(locale='ar')}\n"
-            f"📦 **مهمات اليوم:** {notes.completed_commissions}/{notes.max_commissions}\n"
-            f"🗺️ **البعثات:** {notes.completed_expeditions}/{notes.max_expeditions}"
+            f"💧 **الريزن الأصلي:** `{notes.current_resin}/{notes.max_resin}`\n"
+            f"⏰ **متبقي لاستعادة الريزن:** `{humanize.naturaltime(notes.resin_recovery_time)}`\n"
+            f"📦 **مهمات اليوم:** `{notes.completed_commissions}/{notes.max_commissions}`\n"
+            f"🗺️ **البعثات:** `{notes.completed_expeditions}/{notes.max_expeditions}`"
         )
         
         await event.respond(message)
@@ -131,16 +152,24 @@ async def abyss_handler(event):
     await event.respond("جارٍ جلب إحصائيات الـSpiral Abyss...")
     
     try:
-        abyss = await client.get_spiral_abyss(uid=uid)
+        # جلب الدورة الحالية
+        abyss_current = await client.get_spiral_abyss(uid=uid)
         
         message = (
             f"**⚔️ إحصائيات الـSpiral Abyss (الدورة الحالية):**\n"
-            f"✨ **الدور المكتمل:** {abyss.total_battles}\n"
-            f"⭐ **النجوم المكتسبة:** {abyss.total_stars}\n"
-            f"👑 **أعلى فوز:** {abyss.most_played_characters[0].name} ({abyss.most_played_characters[0].value} مرات)"
+            f"✨ **الدور المكتمل:** `{abyss_current.total_battles}`\n"
+            f"⭐ **النجوم المكتسبة:** `{abyss_current.total_stars}`\n"
         )
         
-        await event.respond(message)
+        # جلب الدورة السابقة
+        abyss_previous = await client.get_spiral_abyss(uid=uid, previous=True)
+        message += (
+            f"\n**⚔️ إحصائيات الدورة السابقة:**\n"
+            f"✨ **الدور المكتمل:** `{abyss_previous.total_battles}`\n"
+            f"⭐ **النجوم المكتسبة:** `{abyss_previous.total_stars}`\n"
+        )
+       
+        await event.respond(message, parse_mode='md')
     
     except genshin.errors.InvalidCookies:
         await event.respond("❌ خطأ: ملفات تعريف الارتباط (Cookies) الخاصة بك غير صالحة. يرجى تحديثها باستخدام `/setcookies`.")
@@ -164,10 +193,10 @@ async def checkin_handler(event):
         reward = await client.claim_daily_reward()
         message = (
             f"🎁 **تم تسجيل الدخول بنجاح!**\n"
-            f"لقد حصلت على: {reward.amount}x {reward.name}\n"
+            f"لقد حصلت على: `{reward.amount}x {reward.name}`\n"
             f"لقد قمت بتسجيل الدخول لـ **{reward.day}** يومًا هذا الشهر."
         )
-        await event.respond(message)
+        await event.respond(message, parse_mode='md')
     
     except genshin.errors.AlreadyClaimed:
         await event.respond("✅ لقد قمت بتسجيل الدخول اليوم بالفعل!")
@@ -196,12 +225,50 @@ async def showcase_handler(event):
             await event.respond("❌ لا توجد شخصيات في واجهة العرض. تأكد من أن حسابك عام وأن لديك شخصيات معروضة.")
             return
         
-        character_names = [char.name for char in characters]
+        character_names = [f"⭐️`{char.rarity}` | **{char.name}** (`Lvl {char.level}`)" for char in characters]
         message = (
             f"**👤 شخصياتك في واجهة العرض:**\n"
-            f"{', '.join(character_names)}"
+            f"{' • '.join(character_names)}"
         )
-        await event.respond(message)
+        await event.respond(message, parse_mode='md')
+
+    except genshin.errors.DataNotPublic:
+        await event.respond("❌ خطأ: ملفك الشخصي ليس عامًا. يرجى التأكد من أن إعدادات العرض في اللعبة عامة.")
+    except genshin.errors.InvalidCookies:
+        await event.respond("❌ خطأ: ملفات تعريف الارتباط (Cookies) الخاصة بك غير صالحة. يرجى تحديثها باستخدام `/setcookies`.")
+    except Exception as e:
+        await event.respond(f"❌ حدث خطأ غير متوقع: {e}")
+
+# ----- أمر جلب قائمة الشخصيات مع تفاصيلها الكاملة -----
+
+@bot.on(events.NewMessage(pattern='/characters'))
+async def detailed_characters_handler(event):
+    user_id = str(event.sender_id)
+    client, _, uid = get_genshin_client(user_id)
+
+    if not client:
+        await event.respond("❌ لم يتم ربط حسابك بعد. يرجى استخدام أمر `/setcookies` في محادثة خاصة معي أولاً.")
+        return
+
+    await event.respond("جارٍ جلب تفاصيل الشخصيات من واجهة العرض...")
+
+    try:
+        characters = await client.get_characters(uid=uid)
+        
+        if not characters:
+            await event.respond("❌ لا توجد شخصيات في واجهة العرض. تأكد من أن حسابك عام وأن لديك شخصيات معروضة.")
+            return
+
+        message_parts = ["**⚔️ تفاصيل شخصياتك:**\n"]
+        for char in characters:
+            details = (
+                f"**{char.name}** `({char.level} | C{char.constellation})`\n"
+                f"  - 🗡️ **السلاح:** `{char.weapon.name}` (`Lvl {char.weapon.level}`)\n"
+                f"  - 🛡️ **القطع الأثرية:** `{', '.join([a.set.name for a in char.artifacts])}`\n"
+            )
+            message_parts.append(details)
+        
+        await event.respond("\n".join(message_parts), parse_mode='md')
 
     except genshin.errors.DataNotPublic:
         await event.respond("❌ خطأ: ملفك الشخصي ليس عامًا. يرجى التأكد من أن إعدادات العرض في اللعبة عامة.")
@@ -228,10 +295,10 @@ async def diary_handler(event):
         
         message = (
             f"**💰 ملخص الدفتر اليومي (شهر {diary.month}):**\n"
-            f"💎 **Primogems هذا الشهر:** {diary.data.primogems}\n"
-            f"💵 **Mora هذا الشهر:** {diary.data.mora}"
+            f"💎 **Primogems هذا الشهر:** `{diary.data.primogems}`\n"
+            f"💵 **Mora هذا الشهر:** `{diary.data.mora}`"
         )
-        await event.respond(message)
+        await event.respond(message, parse_mode='md')
 
     except genshin.errors.InvalidCookies:
         await event.respond("❌ خطأ: ملفات تعريف الارتباط (Cookies) الخاصة بك غير صالحة. يرجى تحديثها باستخدام `/setcookies`.")
