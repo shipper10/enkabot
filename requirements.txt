@@ -1,2 +1,4 @@
-python-telegram-bot
-nka-py==2.1.2
+aiogram==2.25.1
+aiosqlite
+git+https://github.com/mrwan200/enkanetwork
+git+https://github.com/Veliani/EnkaNetworkCard
