@@ -1,59 +1,51 @@
-import subprocess
-import sys
-import os
-import logging
+import telebot
+from enkanetwork import EnkaNetworkAPI
+from enkacard import EnkaCard, enc_enums
 
-# ===== تثبيت المكتبات من GitHub وقت التشغيل =====
-pkgs = [
-    "git+https://github.com/mrwan200/enkanetwork.git",
-    "git+https://github.com/Veliani/EnkaNetworkCard.git"
-]
-for pkg in pkgs:
+# ضع التوكن الخاص بالبوت هنا
+TOKEN = "توكن_البوت_الخاص_بك"
+
+# قم بإنشاء كائن (instance) للبوت
+bot = telebot.TeleBot(TOKEN)
+
+# قم بإنشاء كائن (instance) لمكتبة EnkaNetwork
+enka_api = EnkaNetworkAPI()
+
+@bot.message_handler(commands=['start', 'help'])
+def send_welcome(message):
+    """
+    يرسل رسالة ترحيبية عند استخدام الأمر /start أو /help.
+    """
+    bot.send_message(message.chat.id, "أهلاً بك! أرسل لي رقم UID الخاص بك وسأرسل لك بطاقة شخصياتك في Genshin Impact.")
+
+@bot.message_handler(func=lambda message: message.text.isdigit() and len(message.text) == 9)
+def handle_uid(message):
+    """
+    يتعامل مع الأرقام المرسلة ويتحقق منها.
+    إذا كانت رقم UID صالح، يقوم بإنشاء البطاقة.
+    """
+    uid = int(message.text)
+    chat_id = message.chat.id
+    
+    # إعلام المستخدم أن البوت يعمل على طلبهم
+    bot.send_message(chat_id, "جاري استخراج البيانات، يرجى الانتظار...")
+
     try:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
+        # استخدام مكتبة EnkaNetwork للحصول على بيانات اللاعب
+        player_info = enka_api.fetch_user_by_uid(uid)
+        
+        # استخدام مكتبة EnkaCard لإنشاء البطاقة
+        enkacard = EnkaCard(player_info)
+        
+        # إنشاء الصورة النهائية
+        card = enkacard.create()
+        
+        # إرسال الصورة إلى المستخدم
+        bot.send_photo(chat_id, card)
+        
     except Exception as e:
-        print(f"❌ فشل تثبيت {pkg}: {e}")
-        sys.exit(1)
+        # في حالة حدوث خطأ
+        bot.send_message(chat_id, f"عذرًا، حدث خطأ: {e}\nتأكد من أن رقم الـ UID صحيح وأن ملفك الشخصي عام في لعبة Genshin Impact.")
 
-# ===== بعد التثبيت استيراد المكتبات =====
-from telegram.ext import ApplicationBuilder, CommandHandler
-import enkanetwork as enka
-from enkacard import generate_card
-from io import BytesIO
-
-# ===== إعدادات البوت =====
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-if not BOT_TOKEN:
-    print("❌ لم يتم تحديد BOT_TOKEN في متغيرات البيئة")
-    sys.exit(1)
-
-logging.basicConfig(level=logging.INFO)
-client = enka.EnkaNetworkAPI(lang=enka.Language.EN)
-
-# ===== أوامر البوت =====
-async def start(update, context):
-    await update.message.reply_text("Hello! Send /stats <UID> to get Genshin Impact stats.")
-
-async def stats(update, context):
-    if not context.args:
-        await update.message.reply_text("Usage: /stats <UID>")
-        return
-
-    uid = context.args[0]
-    try:
-        data = await client.fetch_user(uid)
-        card = await generate_card(data)  # توليد البطاقة
-        buf = BytesIO()
-        card.save(buf, format="PNG")
-        buf.seek(0)
-        await update.message.reply_photo(buf)
-    except Exception as e:
-        await update.message.reply_text(f"Error fetching stats: {e}")
-
-# ===== تشغيل البوت =====
-app = ApplicationBuilder().token(BOT_TOKEN).build()
-app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("stats", stats))
-
-if __name__ == "__main__":
-    app.run_polling()
+# تشغيل البوت
+bot.polling()
