@@ -3,7 +3,7 @@
 # Genshin Telegram Bot - Postgres + enkacard local generation
 # Features:
 # - PostgreSQL via SQLAlchemy for persistence
-# - enkanetwork for fetching Hoyolab data (optional HOYOLAB_COOKIE)
+# - enka for fetching Hoyolab data (optional HOYOLAB_COOKIE)
 # - enkacard library used locally to render cards (requires system deps)
 # - /bind, /profile, /abyss, /wish, /wishlog, /characters (paginated 3x4 grid)
 # - Flask health endpoint for Koyeb
@@ -17,9 +17,9 @@ import requests
 
 # optional libs
 try:
-    import enkanetwork
+    import enka
 except Exception:
-    enkanetwork = None
+    enka = None
 
 try:
     import enkacard as enkacard_lib
@@ -71,11 +71,11 @@ SessionLocal = sessionmaker(bind=engine)
 Base.metadata.create_all(engine)
 
 ENKA_CLIENT = None
-if HOYOLAB_COOKIE and enkanetwork is not None:
+if HOYOLAB_COOKIE and enka is not None:
     try:
-        ENKA_CLIENT = enkanetwork.Client(cookie=HOYOLAB_COOKIE)
+        ENKA_CLIENT = enka.Client(cookie=HOYOLAB_COOKIE)
     except Exception as e:
-        print("enkanetwork init failed:", e)
+        print("enka init failed:", e)
         ENKA_CLIENT = None
 
 BANNERS = {
@@ -132,7 +132,7 @@ def perform_single_wish_db(db, telegram_id, banner):
 
 def fetch_profile_by_uid(uid):
     if ENKA_CLIENT is None:
-        return None, "enkanetwork unavailable or HOYOLAB_COOKIE not set"
+        return None, "enka unavailable or HOYOLAB_COOKIE not set"
     try:
         player = ENKA_CLIENT.get_player(uid)
         return player, None
@@ -141,7 +141,7 @@ def fetch_profile_by_uid(uid):
 
 def fetch_abyss_by_uid(uid):
     if ENKA_CLIENT is None:
-        return None, "enkanetwork unavailable or HOYOLAB_COOKIE not set"
+        return None, "enka unavailable or HOYOLAB_COOKIE not set"
     try:
         abyss = ENKA_CLIENT.get_spiral_abyss(uid)
         return abyss, None
@@ -268,20 +268,20 @@ def characters_cmd(update: Update, context: CallbackContext):
             update.message.reply_text("لا يوجد UID مسجل. استخدم /bind <UID>")
             return
         uid = user.uid
-        # fetch characters via enkanetwork if available
+        # fetch characters via enka if available
         if ENKA_CLIENT is None:
-            update.message.reply_text("enkanetwork غير متوفر أو HOYOLAB_COOKIE لم يُضبط.")
+            update.message.reply_text("enka غير متوفر أو HOYOLAB_COOKIE لم يُضبط.")
             return
         try:
             player = ENKA_CLIENT.get_player(uid)
-            chars = player.characters  # enkanetwork's player should have characters list; may vary by version
+            chars = player.characters  # enka's player should have characters list; may vary by version
         except Exception as e:
             update.message.reply_text("خطأ عند جلب الشخصيات: " + str(e))
             return
         # format character list as simple list of dicts (id, name)
         char_list = []
         for c in chars:
-            # Some enkanetwork versions use different attribute names - use best-effort
+            # Some enka versions use different attribute names - use best-effort
             name = getattr(c, 'name', getattr(c, 'character', None) or str(c))
             cid = getattr(c, 'id', getattr(c, 'character_id', None) or name)
             char_list.append({'id': cid, 'name': name})
@@ -347,7 +347,7 @@ def characters_callback(update: Update, context: CallbackContext):
         finally:
             db.close()
         img_buf, err = generate_character_card_image(uid, character_name=char['name'])
-        caption = f\"{char['name']}\\n(معلومات إضافية قد تظهر هنا)\"
+        caption = f"{char['name']}\\n(معلومات إضافية قد تظهر هنا)"
         if img_buf:
             try:
                 query.message.reply_photo(photo=img_buf, caption=caption)
