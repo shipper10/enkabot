@@ -353,9 +353,9 @@ def characters_callback(update: Update, context: CallbackContext):
                 query.message.reply_photo(photo=img_buf, caption=caption)
                 return
             except Exception as e:
-                query.message.reply_text(\"فشل في إرسال الصورة: \" + str(e))
+                query.message.reply_text("فشل في إرسال الصورة: " + str(e))
                 return
-        query.message.reply_text(\"فشل في توليد صورة الشخصية: \" + (err or 'unknown error'))
+        query.message.reply_text("فشل في توليد صورة الشخصية: " + (err or 'unknown error'))
 
 def profile_cmd(update: Update, context: CallbackContext):
     db = SessionLocal()
