@@ -1,3 +1,0 @@
-pyTelegramBotAPI
-enka-network
-git+https://github.com/thesadru/enka-network
