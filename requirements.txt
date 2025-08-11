@@ -1,0 +1,6 @@
+python-telegram-bot==13.19
+SQLAlchemy==1.4.52
+psycopg2-binary==2.9.9
+requests==2.31.0
+enkanetwork
+enkacard
